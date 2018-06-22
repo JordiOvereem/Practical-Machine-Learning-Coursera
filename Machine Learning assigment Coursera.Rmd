@@ -1,0 +1,108 @@
+---
+title: "Programming Assignment ML"
+author: "Jordi Overeem"
+date: "22 juni 2018"
+output: html_document
+---
+
+# Practical Machine Learning assignment
+## Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Loading packages and the data
+```{r}
+# SETTINGS & LIBRARIES
+setwd("C:/Users/joov2/Desktop")
+set.seed(555)
+library(caret)
+library(randomForest)
+library(rattle)
+library(corrplot)
+library(rpart)
+
+# LOAD DATAFRAMES
+training_data_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_data_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+train <- data.frame(read.csv(file=training_data_url))
+test <- data.frame(read.csv(file=test_data_url))
+dim(train)
+dim(test)
+```
+## Cleaning and pre-processing the data
+With the code below, some ID variables and variables and cases with many missing values are removed from the dataset. Also, the data is partitioned and prepared for validation.
+```{r}
+# DATA CLEANSING
+train <- train[,-c(1:6)] # Remove ID vars
+test <- test[,-c(1:6)]
+
+NZs <- nearZeroVar(train)
+train <- train[, -NZs] # Remove vars with many missing values
+test <- test[, -NZs]
+
+NAs <- sapply(train, function(x) mean(is.na(x))) > 0.95
+train <- train[, NAs == "FALSE"] # Remove cases with many NA's
+test <- test[, NAs == "FALSE"]
+dim(train)
+dim(test)
+summary(train)
+head(train)
+
+# DATA PREPARATION
+in_train = createDataPartition(train$classe, p = 3/4, list = FALSE)
+train <- train[in_train, ]
+crossval <- train[-in_train, ]
+```
+
+## Model 1 - Decision Tree model
+First a decision tree model is trained.
+```{r}
+# MODEL 1 | DECISION TREE
+mdl1 <- train(classe~., data = train, method = "rpart") # Decision tree model
+
+predict_train1 <- predict(mdl1, train)
+confmtrx_train1 <- confusionMatrix(predict_train1, train$classe) # Confusion matrix on training data
+
+print(confmtrx_train1)
+
+predict_crossval1 <- predict(mdl1, crossval)
+confmtrx_crossval1 <- confusionMatrix(predict_crossval1, crossval$classe) # Confusion matrix on cross validation data
+
+print(confmtrx_crossval1)
+```
+Accuracy of this model: 0.5736.
+
+## Model 2 - Random Forest model
+Second a random forest model is trained.
+```{r}
+# MODEL 2 | RANDOM FOREST
+mdl2 <- randomForest(classe~., data = train, importance = TRUE, ntree = 10) # Random forest model
+predict_train2 <- predict(mdl2, train)
+confmtrx_train2 <- confusionMatrix(predict_train2, train$classe) # Confusion matrix on training data
+varImpPlot(mdl2)
+print(confmtrx_train2)
+
+predict_crossval2 <- predict(mdl2, crossval)
+confmtrx_crossval2 <- confusionMatrix(predict_crossval2, crossval$classe) # Confusion matrix on cross validation data
+
+print(confmtrx_crossval2)
+```
+Accuracy of this model: 0.9997.
+
+## Conclusion
+Since the accuracy of the random forest model performs better than the decision tree model, the random forest model is used for predictions on the test data:
+```{r}
+predict <- predict(mdl2, test)
+predict
+```
